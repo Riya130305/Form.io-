@@ -1,0 +1,22 @@
+{
+  "name": "formio-backend",
+  "version": "1.0.0",
+  "description": "Form.io self-hosted backend server for Employee Form POC",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "seed": "node seed/createForm.js"
+  },
+  "dependencies": {
+    "formio": "^2.5.0",
+    "dotenv": "^16.4.5",
+    "cors": "^2.8.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

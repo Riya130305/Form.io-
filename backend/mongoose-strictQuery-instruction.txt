@@ -1,0 +1,9 @@
+// Add this at the top, after other requires
+const mongoose = require('mongoose');
+
+// ...existing code...
+
+// Set strictQuery to suppress deprecation warning
+mongoose.set('strictQuery', true);
+
+// ...existing code...

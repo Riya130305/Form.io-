@@ -28,7 +28,16 @@ require('dotenv').config({ path: envPath });
 const https = require('https');
 const http = require('http');
 
-const BASE_URL = `http://localhost:${process.env.PORT || 3001}`;
+const PORT = process.env.PORT || 3001;
+// Project alias (optional). Your current frontend calls the backend without this prefix.
+// We still keep it for optional/diagnostic login attempts.
+const PROJECT_ALIAS = process.env.PROJECT || '';
+
+// Backend base URL (no project prefix)
+const BASE_URL = `http://localhost:${PORT}`;
+
+// Used when bootstrapping default auth template locally (JWT signing/verification).
+const JWT_SECRET = process.env.JWT_SECRET || 'supersecretkey123';
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@example.com';
 const ADMIN_PASS = process.env.ADMIN_PASS || 'Admin@1234';
 
@@ -80,6 +89,9 @@ const EMPLOYEE_FORM_SCHEMA = {
   type: 'form',
   display: 'form',
   tags: ['employee', 'hr', 'poc'],
+  // Allow anonymous users to render and submit the form from the frontend.
+  access: [{ type: 'read_all', roles: ['anonymous'] }],
+  submissionAccess: [{ type: 'create_all', roles: ['anonymous'] }],
   components: [
     // ── Panel: Step 1 — Basic Details ────────────────────────────────────────
     {
@@ -199,74 +211,214 @@ const EMPLOYEE_FORM_SCHEMA = {
   ],
 };
 
+async function bootstrapFormioAuthAndRootAdmin() {
+  const formio = require('formio');
+
+  const formioRouter = formio({
+    mongo: process.env.MONGO_URI,
+    email: { transport: 'stub' },
+    jwt: { secret: JWT_SECRET, expireTime: 240 },
+  });
+
+  await formioRouter.init();
+
+  const FormModel = formioRouter.formio.resources.form.model;
+  const RoleModel = formioRouter.formio.resources.role.model;
+  const SubmissionModel = formioRouter.formio.resources.submission.model;
+
+  // 1) Ensure the default auth template exists (adminLogin/userLogin/user/admin resources/actions).
+  let adminLoginForm = await FormModel.findOne({
+    name: 'adminLogin',
+    type: 'form',
+    deleted: { $eq: null },
+  }).lean().exec();
+
+  if (!adminLoginForm) {
+    console.log('   ⏳ Bootstrapping Form.io default auth template...');
+
+    const defaultTemplate = require('formio/src/templates/default.json');
+    const template = JSON.parse(JSON.stringify(defaultTemplate));
+
+    // If your environment expects a project alias, align the template's project name.
+    if (PROJECT_ALIAS) {
+      template.name = PROJECT_ALIAS;
+    }
+
+    await new Promise((resolve, reject) => {
+      formioRouter.formio.template.import.template(template, (err, data) => {
+        if (err) return reject(err);
+        return resolve(data);
+      });
+    });
+
+    adminLoginForm = await FormModel.findOne({
+      name: 'adminLogin',
+      type: 'form',
+      deleted: { $eq: null },
+    }).lean().exec();
+
+    if (!adminLoginForm) {
+      throw new Error('Form.io bootstrap failed: `adminLogin` form still missing.');
+    }
+  }
+
+  // 2) Ensure root admin user exists in the `admin` resource.
+  const adminResource = await FormModel.findOne({
+    name: 'admin',
+    type: 'resource',
+    deleted: { $eq: null },
+  }).lean().exec();
+
+  if (!adminResource) {
+    throw new Error('Form.io bootstrap failed: `admin` resource missing.');
+  }
+
+  const adminRole = await RoleModel.findOne({
+    machineName: 'administrator',
+    deleted: { $eq: null },
+  }).lean().exec();
+
+  if (!adminRole) {
+    throw new Error('Form.io bootstrap failed: `administrator` role missing.');
+  }
+
+  const existingAdmin = await SubmissionModel.findOne({
+    form: adminResource._id,
+    'data.email': ADMIN_EMAIL,
+    deleted: { $eq: null },
+  }).lean().exec();
+
+  if (!existingAdmin) {
+    console.log('   ⏳ Creating root admin user...');
+    const passwordHash = await new Promise((resolve, reject) => {
+      formioRouter.formio.encrypt(ADMIN_PASS, (err, hash) => {
+        if (err) return reject(err);
+        return resolve(hash);
+      });
+    });
+
+    await SubmissionModel.create({
+      form: adminResource._id,
+      data: {
+        email: ADMIN_EMAIL,
+        password: passwordHash,
+      },
+      roles: [adminRole._id],
+    });
+  }
+
+  return { formioRouter, adminLoginFormId: adminLoginForm._id.toString() };
+}
+
+async function loginAdminViaAdminLoginForm() {
+  // adminLogin is a normal Form.io form (not /user/login in formio@2.5.0)
+  const { formioRouter, adminLoginFormId } = await bootstrapFormioAuthAndRootAdmin();
+
+  const loginPath = `/form/${adminLoginFormId}/submission`;
+  const loginUrl = `${BASE_URL}${loginPath}`;
+  const payload = {
+    data: {
+      email: ADMIN_EMAIL,
+      password: ADMIN_PASS,
+    },
+  };
+
+  console.log('1️⃣  Logging in as admin...');
+  console.log(`[DEBUG] Login URL: ${loginUrl}`);
+  console.log(`[DEBUG] Login payload: ${JSON.stringify(payload)}`);
+
+  const loginRes = await request('POST', loginPath, payload, null);
+
+  // Requested debug: show what came back on failure.
+  if (loginRes.status !== 200) {
+    console.error('❌ Login failed (HTTP).');
+    console.error(`[DEBUG] Login URL: ${loginUrl}`);
+    console.error('   Status:', loginRes.status);
+    console.error('   Response:', JSON.stringify(loginRes.data, null, 2));
+    return { token: null, formioRouter, adminLoginFormId };
+  }
+
+  const token = loginRes.headers['x-jwt-token'];
+  if (!token) {
+    console.error('❌ Login failed: token header `x-jwt-token` missing.');
+    console.error(`[DEBUG] Login URL: ${loginUrl}`);
+    console.error('   Response:', JSON.stringify(loginRes.data, null, 2));
+    return { token: null, formioRouter, adminLoginFormId };
+  }
+
+  console.log('   ✅ Login successful!\n');
+  return { token, formioRouter, adminLoginFormId };
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 async function main() {
   console.log('\n🔧 Form.io Seed Script — Creating Employee Form\n');
   console.log(`📡 Backend: ${BASE_URL}`);
   console.log(`👤 Admin:   ${ADMIN_EMAIL}\n`);
 
-  // Step 1: Login as admin
-  console.log('1️⃣  Logging in as admin...');
-const loginRes = await request('POST', '/user/login', {
-  data: {
-    email: ADMIN_EMAIL,
-    password: ADMIN_PASS,
-  },
-});
+  // 1) Bootstrapping + admin login to get JWT (for production-like flow).
+  const { token, formioRouter } = await loginAdminViaAdminLoginForm();
 
-  if (loginRes.status !== 200) {
-    console.error('❌ Login failed. Is the backend running? Is MongoDB up?');
-    console.error('   Status:', loginRes.status);
-    console.error('   Response:', JSON.stringify(loginRes.data, null, 2));
-    console.error('\n   Make sure:');
-    console.error('   1. MongoDB is running: mongod --dbpath ~/data/db');
-    console.error('   2. Backend is running: node index.js (from /backend)');
-    process.exit(1);
+  // 2) Ensure employeeform exists AND has correct anonymous access.
+  console.log('2️⃣  Ensuring `employeeform` access + existence...');
+
+  const FormModel = formioRouter.formio.resources.form.model;
+  const RoleModel = formioRouter.formio.resources.role.model;
+
+  const anonymousRole = await RoleModel.findOne({
+    machineName: 'anonymous',
+    deleted: { $eq: null },
+  }).lean().exec();
+
+  if (!anonymousRole) {
+    throw new Error('Form.io bootstrap failed: `anonymous` role missing.');
   }
 
-  const token = loginRes.headers['x-jwt-token'];
-  console.log('   ✅ Login successful!\n');
+  const employeeSchema = JSON.parse(JSON.stringify(EMPLOYEE_FORM_SCHEMA));
+  // Use role IDs directly so permissions don't end up empty.
+  employeeSchema.access = [{ type: 'read_all', roles: [anonymousRole._id.toString()] }];
+  employeeSchema.submissionAccess = [
+    { type: 'read_all', roles: [anonymousRole._id.toString()] },
+    { type: 'create_all', roles: [anonymousRole._id.toString()] },
+  ];
 
-  // Step 2: Check if form already exists
-  console.log('2️⃣  Checking if form already exists...');
-  const existingRes = await request('GET', '/form?type=form&name=employeeform', null, token);
-  if (existingRes.status === 200 && Array.isArray(existingRes.data) && existingRes.data.length > 0) {
-    const existing = existingRes.data[0];
-    console.log('   ⚠️  Form already exists! Skipping creation.');
-    printSummary(existing._id, existing.path);
+  const existingLocal = await FormModel.findOne({
+    name: employeeSchema.name,
+    type: 'form',
+    deleted: { $eq: null },
+  }).lean().exec();
+
+  if (existingLocal) {
+    await FormModel.updateOne(
+      { _id: existingLocal._id },
+      { $set: employeeSchema },
+    );
+    const updated = await FormModel.findOne({ _id: existingLocal._id }).lean().exec();
+    console.log('   ✅ Employee form updated (access fixed).\n');
+    printSummary(updated._id, updated.path);
     return;
   }
 
-  // Step 3: Create the form
-  console.log('3️⃣  Creating Employee Form...');
-  const createRes = await request('POST', '/form', EMPLOYEE_FORM_SCHEMA, token);
-
-  if (createRes.status !== 201) {
-    console.error('❌ Failed to create form!');
-    console.error('   Status:', createRes.status);
-    console.error('   Response:', JSON.stringify(createRes.data, null, 2));
-    process.exit(1);
-  }
-
-  const form = createRes.data;
-  console.log('   ✅ Form created!\n');
-  printSummary(form._id, form.path);
+  const createdLocal = await FormModel.create(employeeSchema);
+  console.log('   ✅ Employee form created.\n');
+  printSummary(createdLocal._id, createdLocal.path);
 }
 
 function printSummary(formId, formPath) {
+  const formIdStr = String(formId);
   console.log('╔══════════════════════════════════════════════════════════╗');
   console.log('║              ✅ Employee Form Ready!                     ║');
   console.log('╠══════════════════════════════════════════════════════════╣');
-  console.log(`║  Form ID   : ${formId.padEnd(44)} ║`);
+  console.log(`║  Form ID   : ${formIdStr.padEnd(44)} ║`);
   console.log(`║  Form Path : ${formPath.padEnd(44)} ║`);
   console.log('╠══════════════════════════════════════════════════════════╣');
   console.log('║  API Endpoints:                                          ║');
-  console.log(`║  GET  /form/${formPath.padEnd(13)} → form schema              ║`);
-  console.log(`║  POST /form/${formPath}/submission → submit data ║`);
-  console.log(`║  GET  /form/${formPath}/submission → all submissions ║`);
+  console.log(`║  GET  /${formPath.padEnd(13)} → form schema              ║`);
+  console.log(`║  POST /${formPath}/submission → submit data ║`);
+  console.log(`║  GET  /${formPath}/submission → all submissions ║`);
   console.log('╠══════════════════════════════════════════════════════════╣');
   console.log('║  Frontend .env:                                          ║');
-  console.log('║  VITE_FORMIO_API=http://localhost:3001                   ║');
+  console.log(`║  VITE_FORMIO_API=${BASE_URL.padEnd(50)} ║`);
   console.log(`║  VITE_FORM_PATH=${formPath.padEnd(42)} ║`);
   console.log('╚══════════════════════════════════════════════════════════╝');
   console.log('\n  👉 Now start the frontend: cd ../frontend && npm run dev\n');

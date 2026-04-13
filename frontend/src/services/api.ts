@@ -60,14 +60,16 @@ export interface Submission {
 // Returns the form component definitions from Form.io
 // The @formio/react <Form> component uses this to render the form
 export async function getFormSchema() {
-  const res = await api.get(`/form/${FORM_PATH}`);
+  // For formio@2.x alias middleware, schema is available at `/{formPath}`
+  const res = await api.get(`/${FORM_PATH}`);
   return res.data;
 }
 
 // ─── 2. Submit Form Data ──────────────────────────────────────────────────────
 // Form.io requires the payload wrapped in { data: { ...formFields } }
 export async function submitForm(formData: FormSubmissionData) {
-  const res = await api.post(`/form/${FORM_PATH}/submission`, {
+  // Submissions are available at `/{formPath}/submission`
+  const res = await api.post(`/${FORM_PATH}/submission`, {
     data: formData,
   });
   return res.data;
@@ -76,6 +78,6 @@ export async function submitForm(formData: FormSubmissionData) {
 // ─── 3. Fetch All Submissions ─────────────────────────────────────────────────
 // Returns paginated list. ?limit=25&skip=0 for pagination
 export async function getSubmissions(): Promise<Submission[]> {
-  const res = await api.get(`/form/${FORM_PATH}/submission?limit=50&sort=-created`);
+  const res = await api.get(`/${FORM_PATH}/submission?limit=50&sort=-created`);
   return res.data;
 }

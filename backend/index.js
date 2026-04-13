@@ -11,6 +11,9 @@
             ↓
     Frontend + Seed script use those APIs
 
+
+
+
  * Form.io Self-Hosted Backend Server
  * ====================================
  * This file boots up the Form.io server using the official `formio` npm package.
@@ -83,8 +86,9 @@ const formio = require('formio');
 const config = {
   mongo: process.env.MONGO_URI,
   jwt: {
-    secret: process.env.JWT_SECRET,
-    expireTime: '240',         // hours
+    // Required for Form.io to generate/validate `x-jwt-token`.
+    secret: process.env.JWT_SECRET || 'supersecretkey123',
+    expireTime: 240, // hours
   },
   // Email (disabled for local dev)
   email: {
@@ -97,7 +101,6 @@ const config = {
     password: process.env.ADMIN_PASS,
   },
 };
-
 
 // Step 1: Get the Express router from formio (synchronous)
 const formioRouter = formio(config);

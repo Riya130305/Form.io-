@@ -4,8 +4,9 @@ import 'react-toastify/dist/ReactToastify.css';
 import EmployeeForm from './components/EmployeeForm';
 import SubmissionsList from './components/SubmissionsList';
 import LandingPage from './components/LandingPage';
+import FormCreator from './components/FormCreator';
 
-type View = 'landing' | 'form' | 'submissions';
+type View = 'landing' | 'form' | 'submissions' | 'create';
 
 const App: React.FC = () => {
   const [view, setView] = useState<View>('landing');
@@ -65,29 +66,39 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      {/* ── Tab Navigation ──────────────────────────────────────────────── */}
+      {/* ── Tab Navigation ────────────────────────────────────────────────── */}
       <nav className="tab-nav">
-        <button
+        {/* <button
           id="tab-form"
           className={`tab-btn ${view === 'form' ? 'tab-active' : ''}`}
           onClick={() => setView('form')}
         >
           <span className="tab-icon">📝</span>
           Submit Form
-        </button>
-        <button
+        </button> */}
+        {/* <button
           id="tab-submissions"
           className={`tab-btn ${view === 'submissions' ? 'tab-active' : ''}`}
           onClick={() => setView('submissions')}
         >
           <span className="tab-icon">📊</span>
           View Submissions
+        </button> */}
+        <button
+          id="tab-create"
+          className={`tab-btn ${view === 'create' ? 'tab-active' : ''}`}
+          onClick={() => setView('create')}
+        >
+          <span className="tab-icon">🛠️</span>
+          Create Form
         </button>
       </nav>
 
       {/* ── Main Content ─────────────────────────────────────────────────── */}
       <main className="app-main">
-        {view === 'form' ? (
+        {view === 'create' ? (
+          <FormCreator />
+        ) : view === 'form' ? (
           <div className="card">
             <div className="card-header">
               <h2>📋 Employee Basic Details</h2>

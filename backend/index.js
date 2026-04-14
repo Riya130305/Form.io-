@@ -11,9 +11,6 @@
             ↓
     Frontend + Seed script use those APIs
 
-
-
-
  * Form.io Self-Hosted Backend Server
  * ====================================
  * This file boots up the Form.io server using the official `formio` npm package.

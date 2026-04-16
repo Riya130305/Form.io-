@@ -5,11 +5,27 @@ import EmployeeForm from './components/EmployeeForm';
 import SubmissionsList from './components/SubmissionsList';
 import LandingPage from './components/LandingPage';
 import FormCreator from './components/FormCreator';
+import SharedFormPage from './components/SharedFormPage';
 
-type View = 'landing' | 'form' | 'submissions' | 'create';
+type View = 'landing' | 'form' | 'submissions' | 'create' | 'shared';
+
+// Helper function to get initial view and formId from URL
+function getInitialViewState(): { view: View; formId: string | null } {
+  const params = new URLSearchParams(window.location.search);
+  const viewParam = params.get('view');
+  const formIdParam = params.get('formId');
+
+  if (viewParam === 'shared' && formIdParam) {
+    return { view: 'shared', formId: formIdParam };
+  }
+
+  return { view: 'landing', formId: null };
+}
 
 const App: React.FC = () => {
-  const [view, setView] = useState<View>('landing');
+  const initialState = getInitialViewState();
+  const [view, setView] = useState<View>(initialState.view);
+  const [selectedFormId, setSelectedFormId] = useState<string | null>(initialState.formId);
   // Increment this to trigger the submissions list to refresh
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
@@ -24,8 +40,24 @@ const App: React.FC = () => {
     return (
       <>
         <LandingPage
-          onStartForm={() => setView('form')}
+          onStartForm={() => setView('create')}
           onViewSubmissions={() => setView('submissions')}
+        />
+        <ToastContainer theme="light" />
+      </>
+    );
+  }
+
+  // ── Shared Form Page ──────────────────────────────────────────────────────
+  if (view === 'shared' && selectedFormId) {
+    return (
+      <>
+        <SharedFormPage
+          formId={selectedFormId}
+          onClose={() => {
+            setSelectedFormId(null);
+            setView('landing');
+          }}
         />
         <ToastContainer theme="light" />
       </>

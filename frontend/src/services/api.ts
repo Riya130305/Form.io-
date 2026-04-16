@@ -69,12 +69,35 @@ export async function getFormSchema() {
 
 // ─── 2. Submit Form Data ──────────────────────────────────────────────────────
 // Form.io requires the payload wrapped in { data: { ...formFields } }
-export async function submitForm(formData: FormSubmissionData) {
+// Optional formPath parameter allows submitting to forms other than the default FORM_PATH
+// isPublic flag determines whether to get admin token for public/shared forms
+export async function submitForm(formData: FormSubmissionData, formPath?: string, isPublic: boolean = false) {
+  const path = formPath || FORM_PATH;
   // Submissions are available at `/{formPath}/submission`
-  const res = await api.post(`/${FORM_PATH}/submission`, {
-    data: formData,
-  });
-  return res.data;
+  
+  if (isPublic) {
+    // For public/shared forms, get an admin token to authorize the submission
+    try {
+      const token = await loginAdmin();
+      const res = await axios.post(`${API_BASE}/${path}/submission`, {
+        data: formData,
+      }, {
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-jwt-token': token,
+        },
+      });
+      return res.data;
+    } catch (error) {
+      throw error;
+    }
+  } else {
+    // For authenticated submissions
+    const res = await api.post(`/${path}/submission`, {
+      data: formData,
+    });
+    return res.data;
+  }
 }
 
 // ─── 3. Fetch All Submissions ─────────────────────────────────────────────────
@@ -98,13 +121,17 @@ export async function loginAdmin(): Promise<string> {
 
 // ─── 5. Save Form Schema to Backend ──────────────────────────────────────────
 // POST /form with admin JWT — stores a new form schema in MongoDB
+// Form.io expects the schema directly at root level
 export async function saveFormSchema(
   schema: Record<string, unknown>,
   token: string,
 ): Promise<{ _id: string; path: string; name: string }> {
-  const res = await api.post('/form', schema, {
-    headers: { 'x-jwt-token': token },
-  });
+  const res = await api.post('/form', 
+    schema,  // ← Send schema directly, NOT wrapped!
+    {
+      headers: { 'x-jwt-token': token },
+    }
+  );
   return res.data;
 }
 

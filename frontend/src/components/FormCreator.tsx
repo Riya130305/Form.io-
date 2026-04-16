@@ -9,6 +9,7 @@ import { loginAdmin, saveFormSchema } from '../services/api';
 /**
  * Normalize a raw schema pasted from the builder:
  * - Ensures title, name, path, type, display are set so Form.io accepts the POST /form request
+ * - Adds unique timestamp suffix to name/path to avoid duplicates
  */
 function normalizeSchema(raw: Record<string, unknown>): Record<string, unknown> {
   const title = (raw.title as string) || 'My Custom Form';
@@ -16,13 +17,18 @@ function normalizeSchema(raw: Record<string, unknown>): Record<string, unknown> 
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '')
-    .slice(0, 63) || 'mycustomform';
+    .slice(0, 45) || 'mycustomform'; // Reduced to 45 to accommodate suffix
+  
+  // Add unique timestamp suffix to ensure name/path uniqueness
+  const uniqueSuffix = Date.now().toString().slice(-6); // Last 6 digits of timestamp
+  const uniqueName = `${slug}-${uniqueSuffix}`;
+  const uniquePath = `${slug}-${uniqueSuffix}`;
 
   return {
     ...raw,
     title,
-    name: (raw.name as string) || slug,
-    path: (raw.path as string) || slug,
+    name: (raw.name as string) || uniqueName,
+    path: (raw.path as string) || uniquePath,
     type: (raw.type as string) || 'form',
     display: (raw.display as string) || 'form',
   };
@@ -122,11 +128,12 @@ const FormCreator: React.FC = () => {
                 {saveError}
               </div>
             )}
-            {/* <button
+            <button
               id="btn-save-form"
               className="btn-save-form"
               onClick={handleSaveForm}
               disabled={isSaving}
+              title="Save this form schema to MongoDB for future use"
             >
               {isSaving ? (
                 <>
@@ -140,10 +147,10 @@ const FormCreator: React.FC = () => {
                     <polyline points="17 21 17 13 7 13 7 21"/>
                     <polyline points="7 3 7 8 15 8"/>
                   </svg>
-                  Save Form to Backend
+                  Save Form Schema to Backend
                 </>
               )}
-            </button> */}
+            </button>
           </div>
         </>
       )}

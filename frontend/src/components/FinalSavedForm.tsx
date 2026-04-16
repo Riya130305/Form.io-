@@ -11,6 +11,7 @@ const FinalSavedForm: React.FC<FinalSavedFormProps> = ({ formId }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   const fetchSchema = useCallback(async () => {
     try {
@@ -34,6 +35,23 @@ const FinalSavedForm: React.FC<FinalSavedFormProps> = ({ formId }) => {
     navigator.clipboard.writeText(formId).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  const handleShareForm = () => {
+    // Generate shareable URL with form ID as query parameter
+    const shareUrl = `${window.location.origin}?view=shared&formId=${formId}`;
+    
+    // Copy to clipboard
+    navigator.clipboard.writeText(shareUrl).then(() => {
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+      
+      // Open in new tab
+      window.open(shareUrl, '_blank');
+    }).catch(() => {
+      // If copy fails, just open in new tab
+      window.open(shareUrl, '_blank');
     });
   };
 
@@ -69,28 +87,44 @@ const FinalSavedForm: React.FC<FinalSavedFormProps> = ({ formId }) => {
       <div className="preview-section-header">
         <div className="preview-section-header-row">
           <span className="json-section-badge final-badge">✅ Saved to MongoDB</span>
-          <button
-            className={`btn-copy-id ${copied ? 'btn-copy-id-success' : ''}`}
-            onClick={handleCopyId}
-            title="Copy form ID to clipboard"
-          >
-            {copied ? (
-              <>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <polyline points="20 6 9 17 4 12"/>
-                </svg>
-                Copied!
-              </>
-            ) : (
-              <>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                  <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
-                </svg>
-                Copy Form ID
-              </>
-            )}
-          </button>
+          <div className="button-group">
+            <button
+              className={`btn-copy-id ${copied ? 'btn-copy-id-success' : ''}`}
+              onClick={handleCopyId}
+              title="Copy form ID to clipboard"
+            >
+              {copied ? (
+                <>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <polyline points="20 6 9 17 4 12"/>
+                  </svg>
+                  Copied!
+                </>
+              ) : (
+                <>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                    <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                  </svg>
+                  Copy Form ID
+                </>
+              )}
+            </button>
+            <button
+              className={`btn-share ${linkCopied ? 'btn-share-success' : ''}`}
+              onClick={handleShareForm}
+              title="Share form with others in a new tab"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <circle cx="18" cy="5" r="3"/>
+                <circle cx="6" cy="12" r="3"/>
+                <circle cx="18" cy="19" r="3"/>
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+              </svg>
+              {linkCopied ? 'Link Copied!' : 'Share Form'}
+            </button>
+          </div>
         </div>
 
         <h3 className="json-section-title">

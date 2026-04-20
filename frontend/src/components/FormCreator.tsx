@@ -75,6 +75,11 @@ const FormCreator: React.FC = () => {
       setSavedFormId(saved._id);
       setSaveSuccess(true);
 
+      // Store the form path in localStorage for submissions view
+      if (saved.path) {
+        localStorage.setItem('lastCreatedFormPath', saved.path);
+      }
+
       // Scroll to success
       setTimeout(() => {
         document.getElementById('save-success-anchor')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -98,67 +103,95 @@ const FormCreator: React.FC = () => {
   };
 
   return (
-    <div className="form-creator">
-      {/* ── Step-by-step guide ────────────────────────────────── */}
-      <BuilderGuide />
-
-      {/* ── Open external builder ─────────────────────────────── */}
-      <div className="creator-divider" />
-      <CreateFormButton />
-
-      {/* ── JSON input + validation ───────────────────────────── */}
-      <div className="creator-divider" />
-      <JsonInputBox onLoadPreview={handleLoadPreview} />
-
-      {/* ── Preview (shown after Load Preview, before save) ───── */}
-      {previewSchema && !savedFormId && (
-        <>
-          <div className="creator-divider" />
-          <PreviewForm schema={previewSchema} />
-
-          {/* Save controls */}
-          <div className="save-controls">
-            {saveError && (
-              <div className="save-error" role="alert">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <circle cx="12" cy="12" r="10"/>
-                  <line x1="12" y1="8" x2="12" y2="12"/>
-                  <line x1="12" y1="16" x2="12.01" y2="16"/>
-                </svg>
-                {saveError}
-              </div>
-            )}
-            <button
-              id="btn-save-form"
-              className="btn-save-form"
-              onClick={handleSaveForm}
-              disabled={isSaving}
-              title="Save this form schema to MongoDB for future use"
-            >
-              {isSaving ? (
-                <>
-                  <div className="spinner spinner-sm" />
-                  Saving…
-                </>
-              ) : (
-                <>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
-                    <polyline points="17 21 17 13 7 13 7 21"/>
-                    <polyline points="7 3 7 8 15 8"/>
-                  </svg>
-                  Save Form Schema to Backend
-                </>
-              )}
-            </button>
+    <div className="form-creator-layout">
+      {/* ── Top Section: Guide & Builder Button ────────────────────── */}
+      <div className="form-creator-header">
+        <BuilderGuide />
+         <div className="form-creator-instruction-banner">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="16" x2="12" y2="12"/>
+            <line x1="12" y1="8" x2="12.01" y2="8"/>
+          </svg>
+          <div>
+            <strong>Important:</strong> Name and Email are essential fields to record your data. Please fill these fields carefully.
           </div>
-        </>
+        </div>
+        <CreateFormButton />
+      </div>
+
+      {/* ── Main Editor Section: Full-width split layout ──────────── */}
+      <div className="form-creator-main">
+        {/* Left Column: JSON Editor (60%) */}
+        <div className="editor-panel">
+          <JsonInputBox onLoadPreview={handleLoadPreview} />
+        </div>
+
+        {/* Right Column: Preview Panel (40%) */}
+        <div className="preview-panel">
+          {previewSchema && !savedFormId ? (
+            <div className="preview-card-wrapper">
+              <PreviewForm schema={previewSchema} />
+            </div>
+          ) : (
+            <div className="preview-placeholder">
+              <div className="placeholder-content">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" opacity="0.5">
+                  <rect x="3" y="3" width="18" height="18" rx="2"/>
+                  <line x1="9" y1="9" x2="15" y2="9"/>
+                  <line x1="9" y1="13" x2="15" y2="13"/>
+                  <line x1="9" y1="17" x2="13" y2="17"/>
+                </svg>
+                <p>Preview will appear here</p>
+                <span>Paste JSON schema and click "Load Preview"</span>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Save Controls (shown when preview is active) ──────────── */}
+      {previewSchema && !savedFormId && (
+        <div className="save-controls-section">
+          {saveError && (
+            <div className="save-error" role="alert">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              {saveError}
+            </div>
+          )}
+          <button
+            id="btn-save-form"
+            className="btn-save-primary"
+            onClick={handleSaveForm}
+            disabled={isSaving}
+            title="Save this form schema to MongoDB for future use"
+          >
+            {isSaving ? (
+              <>
+                <div className="spinner spinner-sm" />
+                Saving…
+              </>
+            ) : (
+              <>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
+                  <polyline points="17 21 17 13 7 13 7 21"/>
+                  <polyline points="7 3 7 8 15 8"/>
+                </svg>
+                Save Form Schema to Backend
+              </>
+            )}
+          </button>
+        </div>
       )}
 
-      {/* ── Success banner + Final form (shown after Save) ──────── */}
+      {/* ── Success Banner + Final Form (shown after Save) ────────── */}
       {saveSuccess && savedFormId && (
-        <>
-          <div className="creator-divider" />
+        <div className="success-section">
           <div id="save-success-anchor" className="save-success-banner" role="status">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
@@ -177,7 +210,7 @@ const FormCreator: React.FC = () => {
             </button>
           </div>
           <FinalSavedForm formId={savedFormId} />
-        </>
+        </div>
       )}
     </div>
   );

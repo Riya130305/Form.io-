@@ -102,9 +102,20 @@ export async function submitForm(formData: FormSubmissionData, formPath?: string
 
 // ─── 3. Fetch All Submissions ─────────────────────────────────────────────────
 // Returns paginated list. ?limit=25&skip=0 for pagination
-export async function getSubmissions(): Promise<Submission[]> {
-  const res = await api.get(`/${FORM_PATH}/submission?limit=50&sort=-created`);
-  return res.data;
+// Optional formPath parameter to fetch submissions for a specific form
+// Requires admin token for authentication
+export async function getSubmissions(formPath?: string): Promise<Submission[]> {
+  const path = formPath || FORM_PATH;
+  try {
+    // Get admin token for authentication
+    const token = await loginAdmin();
+    const res = await api.get(`/${path}/submission?limit=50&sort=-created`, {
+      headers: { 'x-jwt-token': token },
+    });
+    return res.data;
+  } catch (error) {
+    throw error;
+  }
 }
 
 // ─── 4. Admin Login — returns x-jwt-token ─────────────────────────────────────

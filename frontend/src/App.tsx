@@ -2,12 +2,12 @@ import React, { useState } from 'react';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import EmployeeForm from './components/EmployeeForm';
-import SubmissionsList from './components/SubmissionsList';
 import LandingPage from './components/LandingPage';
 import FormCreator from './components/FormCreator';
 import SharedFormPage from './components/SharedFormPage';
+import SubmissionsList from './components/SubmissionsList';
 
-type View = 'landing' | 'form' | 'submissions' | 'create' | 'shared';
+type View = 'landing' | 'form' | 'create' | 'shared' | 'submissions';
 
 // Helper function to get initial view and formId from URL
 function getInitialViewState(): { view: View; formId: string | null } {
@@ -26,13 +26,9 @@ const App: React.FC = () => {
   const initialState = getInitialViewState();
   const [view, setView] = useState<View>(initialState.view);
   const [selectedFormId, setSelectedFormId] = useState<string | null>(initialState.formId);
-  // Increment this to trigger the submissions list to refresh
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const handleSubmitSuccess = () => {
-    setRefreshTrigger((n) => n + 1);
-    // Switch to submissions view after successful submit
-    setTimeout(() => setView('submissions'), 1500);
+    // Submit success handler - can be extended for future use
   };
 
   // ── Landing Page ─────────────────────────────────────────────────────────
@@ -100,22 +96,6 @@ const App: React.FC = () => {
 
       {/* ── Tab Navigation ────────────────────────────────────────────────── */}
       <nav className="tab-nav">
-        {/* <button
-          id="tab-form"
-          className={`tab-btn ${view === 'form' ? 'tab-active' : ''}`}
-          onClick={() => setView('form')}
-        >
-          <span className="tab-icon">📝</span>
-          Submit Form
-        </button> */}
-        {/* <button
-          id="tab-submissions"
-          className={`tab-btn ${view === 'submissions' ? 'tab-active' : ''}`}
-          onClick={() => setView('submissions')}
-        >
-          <span className="tab-icon">📊</span>
-          View Submissions
-        </button> */}
         <button
           id="tab-create"
           className={`tab-btn ${view === 'create' ? 'tab-active' : ''}`}
@@ -124,13 +104,23 @@ const App: React.FC = () => {
           <span className="tab-icon">🛠️</span>
           Create Form
         </button>
+        <button
+          id="tab-submissions"
+          className={`tab-btn ${view === 'submissions' ? 'tab-active' : ''}`}
+          onClick={() => setView('submissions')}
+        >
+          <span className="tab-icon">📋</span>
+          Submissions
+        </button>
       </nav>
 
       {/* ── Main Content ─────────────────────────────────────────────────── */}
       <main className="app-main">
         {view === 'create' ? (
           <FormCreator />
-        ) : view === 'form' ? (
+        ) : view === 'submissions' ? (
+          <SubmissionsList />
+        ) : (
           <div className="card">
             <div className="card-header">
               <h2>📋 Employee Basic Details</h2>
@@ -142,8 +132,6 @@ const App: React.FC = () => {
               <EmployeeForm onSubmitSuccess={handleSubmitSuccess} />
             </div>
           </div>
-        ) : (
-          <SubmissionsList refreshTrigger={refreshTrigger} />
         )}
       </main>
 

@@ -1,67 +1,105 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { getSubmissions, Submission } from '../services/api';
+import React, { useEffect, useState } from 'react';
+import { getSubmissions } from '../services/api';
 import { toast } from 'react-toastify';
 
-interface SubmissionsListProps {
-  refreshTrigger: number;
+interface SubmissionData {
+  firstName?: string;
+  lastName?: string;
+  personalEmail?: string;
+  companyEmail?: string;
+  [key: string]: unknown;
 }
 
-const GENDER_LABELS: Record<string, string> = {
-  male: '♂ Male',
-  female: '♀ Female',
-  other: '⚥ Other',
-};
+interface Submission {
+  _id: string;
+  form: string;
+  data: SubmissionData;
+  created: string;
+  modified: string;
+}
 
-const SubmissionsList: React.FC<SubmissionsListProps> = ({ refreshTrigger }) => {
+const SubmissionsList: React.FC = () => {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const loadSubmissions = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await getSubmissions();
-      setSubmissions(data);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Unknown error';
-      setError(`Failed to load submissions: ${msg}`);
-      toast.error('Could not load submissions. Is the backend running?');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const [formPath, setFormPath] = useState<string | null>(null);
 
   useEffect(() => {
-    loadSubmissions();
-  }, [loadSubmissions, refreshTrigger]);
+    const fetchSubmissions = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        // Get the last created form path from localStorage
+        const savedFormPath = localStorage.getItem('lastCreatedFormPath');
+        
+        if (!savedFormPath) {
+          setError('No form created yet. Please create a form first.');
+          setLoading(false);
+          return;
+        }
+
+        setFormPath(savedFormPath);
+        const data = await getSubmissions(savedFormPath);
+        setSubmissions(data);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Failed to load submissions';
+        setError(msg);
+        toast.error(msg);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSubmissions();
+  }, []);
 
   if (loading) {
     return (
-      <div className="form-loading">
-        <div className="spinner" />
-        <p>Loading submissions…</p>
+      <div className="submissions-container">
+        <div className="loading-state">
+          <div className="spinner" />
+          <p>Loading submissions...</p>
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="form-error">
-        <div className="error-icon">⚠️</div>
-        <h3>Error loading submissions</h3>
-        <pre>{error}</pre>
-        <button className="btn-retry" onClick={loadSubmissions}>🔄 Retry</button>
+      <div className="submissions-container">
+        <div className="error-state">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          <h3>Error Loading Submissions</h3>
+          <p>{error}</p>
+        </div>
       </div>
     );
   }
 
   if (submissions.length === 0) {
     return (
-      <div className="empty-state">
-        <div className="empty-icon">📋</div>
-        <h3>No Submissions Yet</h3>
-        <p>Submit the form to see data here. Every submission is stored in MongoDB.</p>
+      <div className="submissions-container">
+        <div className="submissions-header">
+          <div>
+            <h1>Form Submissions</h1>
+            <p className="subtitle">No submissions yet</p>
+          </div>
+        </div>
+        <div className="empty-state">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" opacity="0.5">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <line x1="9" y1="9" x2="15" y2="9"/>
+            <line x1="9" y1="13" x2="15" y2="13"/>
+            <line x1="9" y1="17" x2="13" y2="17"/>
+          </svg>
+          <h3>No Submissions Yet</h3>
+          <p>When users fill and submit the form, their data will appear here.</p>
+        </div>
       </div>
     );
   }
@@ -69,65 +107,50 @@ const SubmissionsList: React.FC<SubmissionsListProps> = ({ refreshTrigger }) => 
   return (
     <div className="submissions-container">
       <div className="submissions-header">
-        <h2>📊 Submissions</h2>
-        <div className="submissions-meta">
-          <span className="badge">{submissions.length} record{submissions.length !== 1 ? 's' : ''}</span>
-          <button className="btn-refresh" onClick={loadSubmissions} title="Refresh">
-            🔄 Refresh
-          </button>
+        <div>
+          <h1>Form Submissions</h1>
+          <p className="subtitle">
+            {formPath ? `Form: ${formPath}` : 'Loading...'} • Total submissions: {submissions.length}
+          </p>
         </div>
       </div>
 
-      <div className="table-scroll">
+      <div className="submissions-table-wrapper">
         <table className="submissions-table">
           <thead>
             <tr>
               <th>#</th>
-              <th>Employee ID</th>
               <th>Name</th>
-              <th>Personal Email</th>
-              <th>Company Email</th>
-              <th>Phone</th>
-              <th>Gender</th>
-              <th>Submitted At</th>
+              <th>Email</th>
+              <th>Submitted On</th>
             </tr>
           </thead>
           <tbody>
-            {submissions.map((sub, idx) => {
-              const d = sub.data;
+            {submissions.map((submission, index) => {
+              // Flexible field name extraction - checks multiple possible field names
+              const getFieldValue = (data: SubmissionData, possibleNames: string[]) => {
+                for (const name of possibleNames) {
+                  if (data[name]) {
+                    return String(data[name]);
+                  }
+                }
+                return 'N/A';
+              };
+
+              const name = getFieldValue(submission.data, ['firstName', 'name', 'fullName', 'employeeName', 'textField', 'nameField']);
+              const email = getFieldValue(submission.data, ['personalEmail', 'email', 'companyEmail', 'userEmail', 'emailAddress', 'textField1', 'emailField']);
+              const submittedDate = new Date(submission.created).toLocaleDateString();
+
               return (
-                <tr key={sub._id} className="submission-row">
-                  <td className="idx-cell">{idx + 1}</td>
-                  <td>
-                    <span className="emp-id">{d.employeeId || '—'}</span>
+                <tr key={submission._id} className="submission-row">
+                  <td className="idx-cell">{index + 1}</td>
+                  <td className="submission-name">
+                    <strong>{name}</strong>
                   </td>
-                  <td>
-                    <span className="emp-name">
-                      {[d.firstName, d.lastName].filter(Boolean).join(' ') || '—'}
-                    </span>
+                  <td className="submission-email">
+                    <a href={`mailto:${email}`} className="email-link">{email}</a>
                   </td>
-                  <td>
-                    <a href={`mailto:${d.personalEmail}`} className="email-link">
-                      {d.personalEmail || '—'}
-                    </a>
-                  </td>
-                  <td>
-                    <a href={`mailto:${d.companyEmail}`} className="email-link">
-                      {d.companyEmail || '—'}
-                    </a>
-                  </td>
-                  <td>{d.phoneNumber || '—'}</td>
-                  <td>
-                    <span className={`gender-badge gender-${d.gender}`}>
-                      {GENDER_LABELS[d.gender] || d.gender || '—'}
-                    </span>
-                  </td>
-                  <td className="date-cell">
-                    {new Date(sub.created).toLocaleString('en-IN', {
-                      dateStyle: 'medium',
-                      timeStyle: 'short',
-                    })}
-                  </td>
+                  <td className="submission-date">{submittedDate}</td>
                 </tr>
               );
             })}

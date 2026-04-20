@@ -2,7 +2,7 @@ import React from 'react';
 
 interface LandingPageProps {
   onStartForm: () => void;
-  onViewSubmissions: () => void;
+  onViewSubmissions?: () => void;
 }
 
 const LandingPage: React.FC<LandingPageProps> = ({ onStartForm, onViewSubmissions }) => {
@@ -35,12 +35,6 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStartForm, onViewSubmission
 
           {/* Nav CTA */}
           <div className="landing-nav-actions">
-            {/* <button className="nav-btn-outline" onClick={onViewSubmissions}>
-              View Submissions
-            </button> */}
-            {/* <button className="nav-btn-solid" onClick={onStartForm}> */}
-              {/* Get Started
-            </button> */}
           </div>
         </div>
       </nav>
@@ -70,13 +64,12 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStartForm, onViewSubmission
             </svg>
             Start Form
           </button>
-          {/* <button id="cta-view-submissions" className="cta-secondary" onClick={onViewSubmissions}>
+          <button id="cta-view-submissions" className="cta-secondary" onClick={onViewSubmissions}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M3 10h18M3 14h18M10 3v18"/>
-              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2M9 10h6M9 14h6"/>
             </svg>
             View Submissions
-          </button> */}
+          </button>
         </div>
 
         {/* Subtle scroll hint */}
